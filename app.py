@@ -41,6 +41,7 @@ def embed_pdf():
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
 from qdrant_client import QdrantClient
+from langchain.chat_models import ChatOpenAI
 
 @app.route('/retrieve', methods=['POST'])
 def retrieve_info():
@@ -52,7 +53,7 @@ def retrieve_info():
     embeddings = CohereEmbeddings(model="multilingual-22-12", cohere_api_key=cohere_api_key)
     qdrant = Qdrant(client=client, collection_name=collection_name, embedding_function=embeddings.embed_query)
     search_results = qdrant.similarity_search(query, k=2)
-    chain = load_qa_chain(OpenAI(openai_api_key=openai_api_key,temperature=0.2), chain_type="stuff")
+    chain = load_qa_chain(ChatOpenAI(openai_api_key=openai_api_key,temperature=0.2), chain_type="stuff")
     results = chain({"input_documents": search_results, "question": query}, return_only_outputs=True)
     
     return {"results":results["output_text"]}
