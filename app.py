@@ -41,7 +41,6 @@ def embed_pdf():
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
 from qdrant_client import QdrantClient
-from langchain.chat_models import ChatOpenAI
 
 @app.route('/retrieve', methods=['POST'])
 def retrieve_info():
