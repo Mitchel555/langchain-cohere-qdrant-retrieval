@@ -35,18 +35,30 @@ The app should now be running with an api route ```/embed``` and another api rou
 
 Feel free to reach out if any questions on [Twitter](https://twitter.com/MisbahSy)
 
-
-Spouštění aplikace:
+_______________________________________________________________________________________________________________________________________________________________________
+Spouštění aplikace - v terminálu je potřeba být ve stejném adresáři jako app.py a zadáš:
 C:\Users\pcnov\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\Scripts\waitress-serve.exe --port=8080 app:app
 
 
-Localhost request:
-
+Localhost request v powershellu:
+/retrieve
+__________
 $jsonData = @"
 {
     "collection_name": "name",
     "query": "co je v dokumentu?"
 }
 "@
-
 Invoke-WebRequest -Uri "http://localhost:8080/retrieve" -Method POST -ContentType "application/json" -Body $jsonData
+__________
+
+/embed
+__________
+$jsonData = @"
+{
+    "collection_name": "<collection_name>",
+    "file_url": "<file_url>"
+}
+"@
+Invoke-WebRequest -Uri "http://localhost:8080/retrieve" -Method POST -ContentType "application/json" -Body $jsonData
+__________
