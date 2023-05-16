@@ -1,5 +1,4 @@
 import os
-import faiss
 import requests
 from io import BytesIO
 import pdfplumber
