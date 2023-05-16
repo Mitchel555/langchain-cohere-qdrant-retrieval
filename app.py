@@ -1,93 +1,103 @@
-from flask import Flask, request
+import os
+import faiss
+import requests
+from io import BytesIO
+import pdfplumber
+from flask import Flask, request, jsonify
 from flask_cors import CORS
+from PyPDF2 import PdfReader
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import ElasticVectorSearch, Pinecone, Weaviate, FAISS
 from langchain.chat_models import ChatOpenAI
 from langchain.chains.question_answering import load_qa_chain
-import json
-
-# Loading environment variables
-import os
-from dotenv import load_dotenv
-load_dotenv()
-openai_api_key = os.environ.get('openai_api_key')
-cohere_api_key = os.environ.get('cohere_api_key')
-qdrant_url = os.environ.get('qdrant_url')
-qdrant_api_key = os.environ.get('qdrant_api_key')
-
-#Flask config
-app = Flask(__name__)
-CORS(app)
-
-# Test default route
-@app.route('/')
-def hello_world():
-    return {"Hello":"World"}
-
-## Embedding code
-from langchain.embeddings import CohereEmbeddings
 from langchain.document_loaders import PyPDFLoader
-from langchain.vectorstores import Qdrant
-
-@app.route('/embed', methods=['POST'])
-def embed_pdf():
-    collection_name = request.json.get("collection_name")
-    file_url = request.json.get("file_url")
-
-    loader = PyPDFLoader(file_url)
-    docs = loader.load_and_split()
-
-    embeddings = OpenAIEmbeddings(openai_api_key)  # replacing CohereEmbeddings with OpenAIEmbeddings
-
-    qdrant = Qdrant.from_documents(docs, embeddings, url=qdrant_url, collection_name=collection_name, prefer_grpc=True, api_key=qdrant_api_key)
-    
-    return {"collection_name": qdrant.collection_name}
-
-# Retrieve information from a collection
-from langchain.chains.question_answering import load_qa_chain
-from langchain.llms import OpenAI
-from langchain.chat_models import ChatOpenAI
-from qdrant_client import QdrantClient
 from langchain.prompts import PromptTemplate
-from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate
-
 from langchain.llms import OpenAI
 from langchain.chains import LLMChain
-from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate
+from langchain.prompts import MessagesPlaceholder, HumanMessagePromptTemplate, ChatPromptTemplate
+from langchain.schema import HumanMessage
+from langchain.prompts.chat import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+
+
+os.environ["OPENAI_API_KEY"] = "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"
+
+app = Flask(__name__)
+
+@app.route('/embed', methods=['POST'])
+def embed_text():
+    index_name = request.json.get("index_name")
+    file_url = request.json.get("file_url")
+    
+    # Download and extract text from PDF
+    texts = download_and_extract_text(file_url)
+
+    # Generate embeddings and store in FAISS index
+    embeddings = OpenAIEmbeddings()
+    store = FAISS.from_texts(texts, embeddings)
+
+    # Write FAISS index to a file and clear the indexS
+    # faiss.write_index(store.index, index_name)
+    store.save_local(index_name)
+    store.index = None
+
+    return {"message": "Embedding completed and FAISS index saved successfully."}, 200
 
 @app.route('/retrieve', methods=['POST'])
-def retrieve_info():
-    collection_name = request.json.get("collection_name")
+def retrieve_text():
+    index_name = request.json.get("index_name")
     query = request.json.get("query")
+    embeddings = OpenAIEmbeddings()
+    index = FAISS.load_local(index_name, embeddings)
+    # chain = load_qa_chain(ChatOpenAI(), chain_type="stuff")
 
-    client = QdrantClient(url=qdrant_url, prefer_grpc=True, api_key=qdrant_api_key)
+    docs = index.similarity_search(query, k=3)
 
-    embeddings = OpenAIEmbeddings(openai_api_key) 
-    qdrant = Qdrant(client=client, collection_name=collection_name, embedding_function=embeddings.embed_query)
-    search_results = qdrant.similarity_search(query, k=5)
-
-    # Define the LLM and the prompt
     chat = ChatOpenAI(temperature=0)
     human_message_prompt = HumanMessagePromptTemplate(
         prompt=PromptTemplate(
-            template="Zpracuj odpoved na zaklade uzivatelskeho vstupu: {query} Poskytnuty Text:{search_results} Pokud odpověď v tomto textu nenajdes, napiš že nevíš",
-            input_variables=["query","search_results"],
+            template="{query}",
+            input_variables=["query"],
         )
     )
-    chat_prompt_template = ChatPromptTemplate.from_messages([human_message_prompt])
+    system_template = "Jsi chatbot Chetty, ktery odpovida pouze na zaklade techto svych vedomosti, odpovidej strucne a mluv jako kdyby jsi zastupoval Multimu: {docs}"
+    system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
+    
+    chat_prompt_template = ChatPromptTemplate.from_messages([human_message_prompt, system_message_prompt])
 
     # Define the chain
     chain = LLMChain(llm=chat, prompt=chat_prompt_template)
+    input_vars = {"docs": docs, "query": query}
+    answer = chain.run(input_vars)
+    print(answer)
+    # return jsonify({"answer": answer})
+    return jsonify({"results": answer}), 200
 
-    # Prepare the input variables for the chain
-    input_vars = {"search_results": search_results, "query": query}
 
-    # Print the prompt
-    # prompt = "Zpracuj odpoved na zaklade uzivatelskeho vstupu: {query} Poskytnuty Text:{search_results} Pokud odpověď v tomto textu nenajdes, napiš že nevíš".format(query=query, search_results=search_results)
-    # print(f'Prompt sent to OpenAI: {prompt}')
+def download_and_extract_text(file_url):
+    # Send a HTTP request to the URL
+    with requests.get(file_url) as r:
+        r.raise_for_status()
+        # Store the file in memory
+        with BytesIO(r.content) as f:
+            # Open the PDF file
+            with pdfplumber.open(f) as pdf:
+                raw_text = ''
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        raw_text += text
 
-    # Run the chain
-    results = chain.run(input_vars)
+                text_splitter = CharacterTextSplitter(
+                    separator="\n",
+                    chunk_size=1000,
+                    chunk_overlap=200,
+                    length_function=len,
+                )
+                texts = text_splitter.split_text(raw_text)
+    return texts
 
-    return {"results": results}
+if __name__ == '__main__':
+    app.run(debug=True)
