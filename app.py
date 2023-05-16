@@ -20,7 +20,10 @@ from langchain.schema import HumanMessage
 from langchain.prompts.chat import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 
 
-os.environ["OPENAI_API_KEY"] = "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"
+#os.environ["OPENAI_API_KEY"] = "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"
+from dotenv import load_dotenv
+load_dotenv()
+openai_api_key = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
 
@@ -47,6 +50,7 @@ def embed_text():
 def retrieve_text():
     index_name = request.json.get("index_name")
     query = request.json.get("query")
+    ID = request.json.get("ID")
     embeddings = OpenAIEmbeddings()
     index = FAISS.load_local(index_name, embeddings)
     # chain = load_qa_chain(ChatOpenAI(), chain_type="stuff")
