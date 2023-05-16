@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import ElasticVectorSearch, Pinecone, Weaviate, FAISS
+from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.document_loaders import PyPDFLoader
@@ -15,13 +15,10 @@ from langchain.llms import OpenAI
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate
-from langchain.prompts import MessagesPlaceholder, HumanMessagePromptTemplate, ChatPromptTemplate
-from langchain.schema import HumanMessage
+from langchain.prompts import  HumanMessagePromptTemplate, ChatPromptTemplate
 from langchain.prompts.chat import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-
-
-#os.environ["OPENAI_API_KEY"] = "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"
 from dotenv import load_dotenv
+
 load_dotenv()
 openai_api_key = os.getenv('OPENAI_API_KEY')
 
@@ -51,7 +48,7 @@ def retrieve_text():
     index_name = request.json.get("index_name")
     query = request.json.get("query")
     ID = request.json.get("ID")
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
     index = FAISS.load_local(index_name, embeddings)
     # chain = load_qa_chain(ChatOpenAI(), chain_type="stuff")
 
