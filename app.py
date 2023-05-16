@@ -4,7 +4,6 @@ from io import BytesIO
 import pdfplumber
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from PyPDF2 import PdfReader
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import ElasticVectorSearch, Pinecone, Weaviate, FAISS
